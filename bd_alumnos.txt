@@ -1,0 +1,12 @@
+39744938;Sistemas_Operativos;Primer Parcial;9.00
+
+39744938;Sistemas_Operativos;Segundo Parcial;8.00
+
+43245791;Sistemas_Operativos;Primer Parcial;7.00
+
+
+23423123;Sistemas_Operativos;Segundo Parcial;8.00
+39744938;Matematica;Primer Parcial;6.00
+39744938;Matematica;Segundo Parcial;8.00
+39744938;Sistemas_Operativos;Recuperatorio;10.00
+39770752;Matematica;Primer Parcial;9.00

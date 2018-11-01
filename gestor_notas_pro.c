@@ -1,16 +1,20 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+#include "gestor_notas.h"
 
-struct registro_bd {
-  long dni;
-  char nombre_materia[50];
-  char tipo_evaluacion[30];
-  float nota;
-};
+void obtener_ayuda()
+{
+	system("clear");
+	printf("Ayuda Ejercicio 5 \n");
+	printf("Entrega N°1\nFecha: 11/11/2018\n");
+	printf("Descrión:\nSe pide realizar una versión local del sistema de notas que se comunique vía memoria compartida, utilizando la misma base de datos que el sistema remoto\n");
+	printf("Forma de ejecución:\nSe llama de la siguiente manera ./gestor_notas_pro [nombre_materia]\n");
+	printf("\nAUTORES\n");
+	printf("Arias Pablo Alejandro       - DNI 32.340.341\n");
+	printf("Feito Gustavo Sebastian     - DNI 27.027.190\n");
+	printf("Magliano, Agustin           - DNI 39.744.938\n");
+	printf("Rosmirez Juan Ignacio       - DNI 40.010.264\n");
+	printf("Zambianchi Nicolas Ezequiel - DNI 39.770.752\n\n");
+	exit(1);
+}
 
 void imprimir_banner(const char* materia_actual)
 {
@@ -22,11 +26,10 @@ void imprimir_banner(const char* materia_actual)
 	printf("Materia: %s\n\n", materia_actual);
 }
 
-int imprimir_error(char* mensaje)
+void imprimir_error(char* mensaje)
 {
 	printf("%s\n\n", mensaje);
-	
-	return EXIT_FAILURE;
+	exit(EXIT_FAILURE);
 }
 
 void imprimir_menu_general(const char* materia_actual)
@@ -35,10 +38,9 @@ void imprimir_menu_general(const char* materia_actual)
 	imprimir_banner(materia_actual);
 	printf("Menu de opciones:\n");
 	printf("-----------------\n\n");
-	printf("1. Ver registros.\n");
-	printf("2. Agregar nota de alumno.\n");
-	printf("3. Consultar promedio de notas de alumno.\n");
-	printf("4. Salir.\n\n");
+	printf("1. Agregar nota de alumno.\n");
+	printf("2. Consultar promedio de notas de alumno.\n");
+	printf("3. Salir.\n\n");
 }
 
 void validar_opt_string(char* opt, char min, char max)
@@ -83,52 +85,49 @@ void validar_opt_float(float* num, float min, float max)
 	}
 }
 
-void buscar_registros_por_materia(const char* materia_actual, FILE* arch_bd)
+void enviar_checkin(void* shm_ptr, const char* materia_actual)
 {
-
+	struct registro_bd alumno;
+	alumno.instruccion = 'r';
+	strcpy(alumno.nombre_materia, materia_actual);
+	memcpy(shm_ptr, &alumno, sizeof(struct registro_bd));
 }
 
-void cargar_alumno_en_base(struct registro_bd* alumno, FILE* arch_bd)
+void cargar_nota_en_base(struct registro_bd alumno, void* shm_ptr)
 {
-
+	//Informar al servidor que de de alta una nota a un alumno especificado en la materia actual.
+	//Se copia el struct del alumno a la shm, con instruccion en a -> alta.
+	 memcpy(shm_ptr, &alumno, sizeof(struct registro_bd));
 }
 
-void mostrar_notas_alumnos(const char* materia_actual, FILE* arch_bd)
+struct registro_bd promedio_notas_por_alumno(struct registro_bd alumno, void* shm_ptr)
 {
-	int opt=0;
-	system("clear");
-	imprimir_banner(materia_actual);
-	printf("Menu de opciones [Ver registros de %s]:\n", materia_actual);
-	printf("---------------------------------------");
-	int i=0;
-	while(i < sizeof(materia_actual)-1){
-		printf("-");
-		i++;
+	//Consultarle al servidor todos los promedios que tiene el alumno por materia y general.
+	//Se copia el struct del alumno a la shm, con la instruccion de p -> promedio.
+	memcpy(shm_ptr, &alumno, sizeof(struct registro_bd));
+
+	//Se crea una referencia del puntero al struct para consultar si hubo cambios.
+	struct registro_bd* alumno_local = (struct registro_bd*)shm_ptr;
+	//Despues tengo que leer y guardar los datos devueltos en el array de notas del alumno.
+	int timeout = 0;
+	while(1)
+	{
+		if (alumno_local->instruccion == 'l' || timeout > 30)
+		{
+			break;
+		}
+		else
+		{
+			sleep(1); //Espera 1 segundo.
+			printf ("Informacion no disponible, reintentando nuevamente... %d restantes.\n", 30 - timeout);
+			timeout++;
+		}
 	}
-	printf("\n\n");
-	printf("Registro de Notas:\n");
-	printf("------------------\n\n");
-	printf(" _________________________________________________________________________\n");
-	printf("|     DNI    |         Nombre Materia         |     Evaluación     | Nota |\n");
-	printf("|------------|--------------------------------|--------------------|------|\n");
-	buscar_registros_por_materia(materia_actual, arch_bd);
-	printf("|____________|________________________________|____________________|______|\n\n\n");
-
-	printf("1. Volver al menú principal.");
-	printf("? ");
-	fflush(stdin);
-	scanf("%d,", &opt);
-	validar_opt_int(&opt, 1, 1);
+	alumno = *alumno_local;
+	return alumno;
 }
 
-float promedio_notas_por_alumno(struct registro_bd* alumno, FILE* arch_bd)
-{
-	float promedio_gen = 0;
-
-	return promedio_gen;
-}
-
-void agregar_nota_alumno(const char* materia_actual, FILE* arch_bd)
+void agregar_nota_alumno(const char* materia_actual, void* shm_ptr)
 {
 	struct registro_bd alumno;
 	int opt2=0;
@@ -162,11 +161,12 @@ void agregar_nota_alumno(const char* materia_actual, FILE* arch_bd)
 	}
 	printf("\nIndique la nota de la materia: ");
 	fflush(stdin);
-	scanf("%f", &alumno.nota);
-	validar_opt_float(&alumno.nota, 1, 10);
+	scanf("%f", &alumno.nota[0]);
+	validar_opt_float(&alumno.nota[0], 1, 10);
+	alumno.instruccion = 'a';
 
-	cargar_alumno_en_base(&alumno, arch_bd);
-	printf("\nLa nota: %.2f, de la evaluación: %s,fue cargada exitosamente al alumno %ld en la materia %s.\n\n", alumno.nota,
+	cargar_nota_en_base(alumno, shm_ptr);
+	printf("\nLa nota: %.2f, de la evaluación: %s,fue cargada exitosamente al alumno %ld en la materia %s.\n\n", alumno.nota[0],
 																   alumno.tipo_evaluacion, alumno.dni, alumno.nombre_materia);
 
 	printf("1. Volver al menú principal.");
@@ -176,7 +176,7 @@ void agregar_nota_alumno(const char* materia_actual, FILE* arch_bd)
 	validar_opt_int(&opt2, 1, 1);
 }
 
-void promediar_notas_alumno(const char* materia_actual, FILE* arch_bd)
+void promediar_notas_alumno(const char* materia_actual, void* shm_ptr)
 {
 	int opt=0;
 	struct registro_bd alumno;
@@ -189,16 +189,30 @@ void promediar_notas_alumno(const char* materia_actual, FILE* arch_bd)
 	fflush(stdin);
 	scanf("%ld", &alumno.dni);
 	validar_opt_long(&alumno.dni, 1, 99999999);
-	printf("Promedio por materia:\n");
+	strcpy(alumno.nombre_materia, materia_actual);
+	strcpy(alumno.tipo_evaluacion, "");
+	alumno.instruccion = 'p';
+	alumno = promedio_notas_por_alumno(alumno, shm_ptr);
+	if (alumno.instruccion != 'l')
+	{
+		printf ("Hubo un problema al calcular los promedios. Lo siento!\n\n");
+		exit(ERROR_CARGA_ARCHIVO);
+	}
+	printf("\nPromedio(General y de %s.)\n", materia_actual);
 	printf("---------------------\n");
 	printf(" ___________________________\n");
-	printf("|     Materia    | Promedio |\n");
-	printf("|----------------|----------|\n");
-	promedio_gen = promedio_notas_por_alumno(&alumno, arch_bd);
-	printf("|________________|__________|\n");
-	printf("Promedio general: %.2f\n", promedio_gen);
-	printf("----------------------\n\n");
-
+	printf("|          Promedio         |\n");
+	printf("|---------------------------|\n");
+	if (alumno.nota[2] > 0)
+		printf("| General:         %.2f     |\n", alumno.nota[2]);
+	else
+		printf("| General:         0.00     |\n");
+	printf("|---------------------------|\n");
+	if (alumno.nota[1] > 0)
+		printf("| Materia act:     %.2f     |\n", alumno.nota[1]);
+	else
+		printf("| Materia act:     0.00     |\n");
+	printf("|___________________________|\n\n");
 	printf("1. Volver al menú principal.");
 	printf("? ");
 	fflush(stdin);
@@ -206,43 +220,93 @@ void promediar_notas_alumno(const char* materia_actual, FILE* arch_bd)
 	validar_opt_int(&opt, 1, 1);
 }
 
+void dejar_servidor(const char profesor[50], void* shm_ptr)
+{
+	struct registro_bd alumno;
+	alumno.instruccion = 's';
+	strcpy(alumno.nombre_materia, profesor);
+	memcpy(shm_ptr, &alumno, sizeof(struct registro_bd));
+}
+
 int main(int argc, char const *argv[])
 {	
 	int opt=0;
+	char usr[50] = "";
+	sem_t* mutex_d;
+	sem_t* mutex_o;
+
+	//Obtencion de la ayuda 
+    if(strcmp(argv[1],"-h")==0 || strcmp(argv[1],"h")==0)
+        obtener_ayuda();
+    if(strcmp(argv[1],"-help")==0 || strcmp(argv[1],"help")==0)
+        obtener_ayuda();
+    if(strcmp(argv[1],"-?")==0 || strcmp(argv[1],"?")==0)
+        obtener_ayuda();
+
+
+    mutex_d = sem_open("mutex_d", O_CREAT, 0660, 1);
+    mutex_o = sem_open("mutex_o", O_CREAT);
+
 	imprimir_banner(argv[1]);
-	
-	if (argc < 2) 
+
+    if (argc < 2) 
 	{
-		if (imprimir_error("No se ingresó la materia.") == EXIT_FAILURE) return EXIT_FAILURE;
+		imprimir_error("No se ingresó la materia.");
 	}
 
-	int key = 9876; //Se crea la clave para la memoria compartida.
-	int shmid; //Se crea el id que tendrá la memoria compartida.
-	char *shm; //Se crea el contenido de la memoria compartida.
-	FILE *bd_notas; //Se crea el puntero al archivo de notas de los alumnos.
+ 	int fd;
+ 	void* shm_ptr;
 
-	//shmid = shmget(key, sizeof(registro_bd), 0775); //Trato de creat la memoria compartida.
+    //Otorga la llave de la, memoria compartida, quienes tengan la misma llave compartiran la memoria compartida.
+    fd = shm_open(NAME_SHM, O_RDWR, 0666);
+    if (fd < 0){
+    	imprimir_error("Error al tratar de unirse a la memoria compartida.");	
+    }
 
-	while(opt != 4)
+    ftruncate(fd, SIZE_SHM);
+
+    shm_ptr = mmap(NULL, SIZE_SHM, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
+    if (shm_ptr == MAP_FAILED)
+    {
+    	imprimir_error("Error al tratar de asignar la memoria compartida");
+    }
+	
+	strcpy(usr, "Profesor de ");
+	strcat(usr, argv[1]);
+	
+	sem_wait(mutex_d);
+	sem_wait(mutex_o);
+	enviar_checkin(shm_ptr, argv[1]);
+	sem_post(mutex_d);
+
+	while(opt != 3)
 	{
 		imprimir_menu_general(argv[1]);
 		scanf("%d", &opt);
-		validar_opt_int(&opt, 1, 4);
+		validar_opt_int(&opt, 1, 3);
 		switch(opt){
 			case 1:
-				mostrar_notas_alumnos(argv[1], bd_notas);
+				sem_wait(mutex_d);
+				sem_wait(mutex_o);
+				agregar_nota_alumno(argv[1], shm_ptr);
+				munmap(NAME_SHM, SIZE_SHM);
+				sem_post(mutex_d);
 				break;
 			case 2:
-				agregar_nota_alumno(argv[1], bd_notas);
+				sem_wait(mutex_d);
+				sem_wait(mutex_o);
+				promediar_notas_alumno(argv[1], shm_ptr);
+				munmap(NAME_SHM, SIZE_SHM);
+				sem_post(mutex_d);
 				break;
 			case 3:
-				promediar_notas_alumno(argv[1], bd_notas);
-				break;
-			case 4:
-				return EXIT_SUCCESS;
+				//Desasociar el proceso actual a la memoria compartida.
+				sem_wait(mutex_d);
+				sem_wait(mutex_o);
+				dejar_servidor(usr, shm_ptr);
+				sem_post(mutex_d);
 				break;
 		}
 	}
 	return EXIT_SUCCESS;
 }
-
