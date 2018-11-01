@@ -1,14 +1,16 @@
+all: servidor_notas_pro gestor_notas_pro
 
-all: gestor_notas
+servidor_notas_pro: servidor_notas_pro.o gestor_notas.h
+		gcc -Iinclude servidor_notas_pro.o -o servidor_notas_pro -lrt -pthread
 
-gestor_notas: servidor_notas_pro.o gestor_notas_pro.o
-	gcc -o -g gestor_notas servidor_notas_pro.o gestor_notas_pro.o -lrt -pthread
+gestor_notas_pro: gestor_notas_pro.o gestor_notas.h
+		gcc -Iinclude gestor_notas_pro.o -o gestor_notas_pro -lrt -pthread
 
-servidor_notas_pro.o: servidor_notas_pro.c gestor_notas.h
-		gcc -c servidor_notas_pro.c
+servidor_notas_pro.o: servidor_notas_pro.c
+		gcc -Iinclude -c servidor_notas_pro.c -o $@
 
-gestor_notas_pro.o: gestor_notas_pro.c gestor_notas.h
-		gcc -c gestor_notas_pro.c
+gestor_notas_pro.o: gestor_notas_pro.c
+		gcc -Iinclude -c gestor_notas_pro.c -o $@
 
 clean:
-	rm -f gestor_notas *.o 
+	rm -f gestor *.o 
