@@ -87,6 +87,8 @@ void validar_opt_float(float* num, float min, float max)
 
 void enviar_checkin(void* shm_ptr, const char* materia_actual)
 {
+	//Se le envía al servidor la instrucción r para que este sepa que se registro un profesor. (ingreso)
+	//A modo de handshake.
 	struct registro_bd alumno;
 	alumno.instruccion = 'r';
 	strcpy(alumno.nombre_materia, materia_actual);
@@ -129,6 +131,8 @@ struct registro_bd promedio_notas_por_alumno(struct registro_bd alumno, void* sh
 
 void agregar_nota_alumno(const char* materia_actual, void* shm_ptr)
 {
+	//Se le pide los datos del alumno para luego cargarlos en la memoria compartida y ser enviados al servidor.
+	//Para que realice la acción correspondiente. (instrucción 'a' => alta del alumno indicado)
 	struct registro_bd alumno;
 	int opt2=0;
 	char opt;
@@ -178,6 +182,8 @@ void agregar_nota_alumno(const char* materia_actual, void* shm_ptr)
 
 void promediar_notas_alumno(const char* materia_actual, void* shm_ptr)
 {
+	//Se le pide el dni del alumno para luego cargarlo en la memoria compartida y ser enviado al servidor.
+	//Para que realice la acción correspondiente. (instrucción 'p' => promedio del alumno indicado)
 	int opt=0;
 	struct registro_bd alumno;
 	float promedio_gen = 0;
@@ -230,12 +236,16 @@ void dejar_servidor(const char profesor[50], void* shm_ptr)
 
 int main(int argc, char const *argv[])
 {	
-	int opt=0;
-	char usr[50] = "";
+	//Declaración de variables.
+	int opt;
+	char usr[50];
 	sem_t* mutex_d;
 	sem_t* mutex_o;
+	int fd;
+ 	void* shm_ptr;
 
-	    if (argc < 2) 
+
+	if (argc < 2) 
 	{
 		imprimir_error("No se ingresó la materia.");
 	}
@@ -248,29 +258,30 @@ int main(int argc, char const *argv[])
     if(strcmp(argv[1],"-?")==0 || strcmp(argv[1],"?")==0)
         obtener_ayuda();
 
-
-    mutex_d = sem_open("mutex_d", O_CREAT, 0660, 1);
+	//Instancia de variables.
+	opt = 0;
+	strcpy(usr, "");
+    mutex_d = sem_open("mutex_d", O_CREAT);
     mutex_o = sem_open("mutex_o", O_CREAT);
 
 	imprimir_banner(argv[1]);
 
- 	int fd;
- 	void* shm_ptr;
-
     //Otorga la llave de la, memoria compartida, quienes tengan la misma llave compartiran la memoria compartida.
     fd = shm_open(NAME_SHM, O_RDWR, 0666);
     if (fd < 0){
-		sem_unlink("mutex_d");
-		sem_unlink("mutex_o");
+		sem_close(mutex_d);
+		sem_close(mutex_o);
     	imprimir_error("Error al tratar de unirse a la memoria compartida.");	
     }
 
     ftruncate(fd, SIZE_SHM);
 
+	//se vincula en puntero a la memoria compartida.
     shm_ptr = mmap(NULL, SIZE_SHM, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
     if (shm_ptr == MAP_FAILED)
     {
 		sem_close(mutex_d);
+		sem_close(mutex_o);
     	imprimir_error("Error al tratar de asignar la memoria compartida");
     }
 	
@@ -311,6 +322,9 @@ int main(int argc, char const *argv[])
 				break;
 		}
 	}
-	sem_unlink("mutex_d");
+
+	//Liberación de recursos.
+	sem_close(mutex_o);
+	sem_close(mutex_d);
 	return EXIT_SUCCESS;
 }

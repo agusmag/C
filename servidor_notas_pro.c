@@ -52,6 +52,7 @@ struct registro_bd parsear_alumno(char* registro, char delimitador[2])
 	char* token = strtok(registro, delimitador);
 	int i = 0;
 
+	//se declara una estructura, y un token, y se recorre por ese token cada registro del archivo.
 	while(token != NULL)
 	{
 		if (i==0)
@@ -79,6 +80,7 @@ void query_promedios_alumno(void* query, FILE* arch_bd, char path[100])
 	struct registro_bd* alumno;
 	struct registro_bd alumno_local;
 
+	//instancia de la estructura creada para borrar basura.
 	alumno = (struct registro_bd*)query;
 	alumno_local.dni = alumno->dni;
 	strcpy(alumno_local.nombre_materia, alumno->nombre_materia);
@@ -124,41 +126,57 @@ void intHandler(int signal) {
 
 int main(int argc, char const *argv[])
 {
+	//declaración de variables.
 	int cantidad_clientes = 0;
 	int entrada = 0;
 	char path[100] = "./bd_alumnos.txt"; 
 	FILE* arch_bd = NULL;
 	sem_t* mutex_i;
 	sem_t* mutex_o;
+	sem_t* mutex_d;
 	signal(SIGINT, intHandler);
-
 	int fd;
-	long dni = 0;
-	char shm_instruction = 'z';
- 	struct registro_bd* query = NULL;
+	long dni;
+	char shm_instruction;
+ 	struct registro_bd* query;
+
+	//instancia de variables.
+	dni = 0;
+	shm_instruction = 'z';
+	query = NULL;
  	mutex_i = sem_open("mutex_i", O_CREAT, 0660, 1);
  	mutex_o = sem_open("mutex_o", O_CREAT, 0660, 1);
+ 	mutex_d = sem_open("mutex_d", O_CREAT, 0660, 1);
  	
- 	sem_wait(mutex_i);
-    imprimir_banner();
+	sem_wait(mutex_i);
+	imprimir_banner();
 
     //otorga la llave de la, memoria compartida, quienes tengan la misma llave compartiran la memoria compartida.
     fd = shm_open(NAME_SHM, O_CREAT | O_EXCL | O_RDWR, 0600);
     if (fd < 0){
 		sem_post(mutex_i);
+		sem_close(mutex_i);
+		sem_close(mutex_o);
+		sem_close(mutex_d);
 		sem_unlink("mutex_i");
+		sem_unlink("mutex_o");
+		sem_unlink("mutex_d");
     	imprimir_error("Error al tratar de crear/ejecutar la memoria compartida.");
     }
 
     ftruncate(fd, SIZE_SHM);
 
+	//se vincula la estructura local a la memoria compartida.
     query = (struct registro_bd*)mmap(0, SIZE_SHM, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
  
+	//mientras no reciba una señal de finalización sigue en el ciclo.
     while(keepRunning)
     {	
+		//consulta por la estructura del area compartida.
     	if (query != NULL )
    		{
    			shm_instruction = query->instruccion;
+			//filtra por la instrucción dentro de la shm, para saber que consultar/accionar.
     		switch(shm_instruction)
     		{
     			case 'r':
@@ -197,22 +215,32 @@ int main(int argc, char const *argv[])
     		}
     	}else
     	{
+			//libera recursos.
     	    munmap(query,SIZE_SHM);
    			shm_unlink(NAME_SHM);
    			close(fd);
    			printf("\nCerrando el servidor compartido...\n");
     		sem_post(mutex_i);
+			sem_close(mutex_i);
+			sem_close(mutex_o);
+			sem_close(mutex_d);
    		 	sem_unlink("mutex_i");
 			sem_unlink("mutex_o");
+			sem_unlink("mutex_d");
 			return EXIT_FAILURE;
     	}
     }
+	//libera recursos.
     munmap(query,SIZE_SHM);
    	shm_unlink(NAME_SHM);
    	close(fd);
    	printf("\nCerrando el servidor compartido...\n");
     sem_post(mutex_i);
+	sem_close(mutex_i);
+	sem_close(mutex_o);
+	sem_close(mutex_d);
     sem_unlink("mutex_i");
 	sem_unlink("mutex_o");
+	sem_unlink("mutex_d");
 	return EXIT_SUCCESS;
 }
