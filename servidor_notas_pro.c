@@ -145,6 +145,8 @@ int main(int argc, char const *argv[])
     //otorga la llave de la, memoria compartida, quienes tengan la misma llave compartiran la memoria compartida.
     fd = shm_open(NAME_SHM, O_CREAT | O_EXCL | O_RDWR, 0600);
     if (fd < 0){
+		sem_post(mutex_i);
+		sem_unlink("mutex_i");
     	imprimir_error("Error al tratar de crear/ejecutar la memoria compartida.");
     }
 
@@ -201,6 +203,7 @@ int main(int argc, char const *argv[])
    			printf("\nCerrando el servidor compartido...\n");
     		sem_post(mutex_i);
    		 	sem_unlink("mutex_i");
+			sem_unlink("mutex_o");
 			return EXIT_FAILURE;
     	}
     }
@@ -210,5 +213,6 @@ int main(int argc, char const *argv[])
    	printf("\nCerrando el servidor compartido...\n");
     sem_post(mutex_i);
     sem_unlink("mutex_i");
+	sem_unlink("mutex_o");
 	return EXIT_SUCCESS;
 }

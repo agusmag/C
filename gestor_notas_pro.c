@@ -235,6 +235,11 @@ int main(int argc, char const *argv[])
 	sem_t* mutex_d;
 	sem_t* mutex_o;
 
+	    if (argc < 2) 
+	{
+		imprimir_error("No se ingresó la materia.");
+	}
+
 	//Obtencion de la ayuda 
     if(strcmp(argv[1],"-h")==0 || strcmp(argv[1],"h")==0)
         obtener_ayuda();
@@ -249,17 +254,14 @@ int main(int argc, char const *argv[])
 
 	imprimir_banner(argv[1]);
 
-    if (argc < 2) 
-	{
-		imprimir_error("No se ingresó la materia.");
-	}
-
  	int fd;
  	void* shm_ptr;
 
     //Otorga la llave de la, memoria compartida, quienes tengan la misma llave compartiran la memoria compartida.
     fd = shm_open(NAME_SHM, O_RDWR, 0666);
     if (fd < 0){
+		sem_unlink("mutex_d");
+		sem_unlink("mutex_o");
     	imprimir_error("Error al tratar de unirse a la memoria compartida.");	
     }
 
@@ -268,6 +270,7 @@ int main(int argc, char const *argv[])
     shm_ptr = mmap(NULL, SIZE_SHM, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
     if (shm_ptr == MAP_FAILED)
     {
+		sem_close(mutex_d);
     	imprimir_error("Error al tratar de asignar la memoria compartida");
     }
 	
@@ -308,5 +311,6 @@ int main(int argc, char const *argv[])
 				break;
 		}
 	}
+	sem_unlink("mutex_d");
 	return EXIT_SUCCESS;
 }
